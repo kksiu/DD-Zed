@@ -7,6 +7,8 @@ import org.json.JSONObject;
 
 import java.io.*;
 import java.net.URI;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 
 public class Main {
@@ -22,6 +24,7 @@ public class Main {
 
     //write to file
     public static void main(String[] args) {
+
         //init files
         fileWrite = new File(write_state);
         fileRead = new File(read_state);
@@ -47,12 +50,27 @@ public class Main {
                     try {
                         Thread.sleep(2000);
                     } catch(Exception e) {
-                        System.out.println("Thread sleep failed " + e.toString());
+                        System.out.println("Thread 2 sleep failed " + e.toString());
                     }
 
                 }
             }
         });
+
+        //now that new thread is constantly getting the state, get the state of zedboard and use that ot set the state
+
+        while(true) {
+            int currZedState = Integer.parseInt(getZedState());
+            boolean returned = setState(currZedState);
+
+            try {
+                Thread.sleep(2000);
+            } catch (Exception e) {
+                System.out.println("Thread 1 sleep failed " + e.toString());
+            }
+
+        }
+
     }
 
     public static void setZedState(int num) {
