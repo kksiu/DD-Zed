@@ -79,10 +79,10 @@ public class Main {
     }
 
     public static void setZedState(int num) {
-        String zedNum = "" + Math.pow(2, num);
+        int power = (int) Math.pow(2, (num-1));
 
         try {
-            output.write(zedNum);
+            output.write(Integer.toHexString(power));
             output.flush();
         } catch ( IOException e ) {
             e.printStackTrace();
