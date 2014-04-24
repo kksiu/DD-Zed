@@ -7,13 +7,12 @@ import org.json.JSONObject;
 
 import java.io.*;
 import java.net.URI;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 
 public class Main {
 
-    static int number;
+    static int zedNumber;
+    static long time;
     static String url = "http://kksiu.com:3000/DD/state";
     static String write_state = "/sys/kernel/ece453_dd/write_state";
     static String read_state = "/sys/kernel/ece453_dd/read_state";
@@ -28,53 +27,59 @@ public class Main {
         //init files
         fileWrite = new File(write_state);
         fileRead = new File(read_state);
+        time = System.currentTimeMillis();
 
         //init buffered
         try {
             output = new BufferedWriter(new FileWriter(fileWrite));
-            input = new BufferedReader(new FileReader(fileRead));
         } catch (Exception e) {
             System.out.println("Can't get files " + e.toString());
         }
 
-
-        //get a new thread that gets state and writes it to zed board
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while(true) {
-                    boolean returned = getState();
-                    if(returned) {
-                        setZedState(number);
-                    }
-                    try {
-                        Thread.sleep(2000);
-                    } catch(Exception e) {
-                        System.out.println("Thread 2 sleep failed " + e.toString());
-                    }
-
-                }
-            }
-        });
-
         //now that new thread is constantly getting the state, get the state of zedboard and use that ot set the state
 
         while(true) {
-            int currZedState = Integer.parseInt(getZedState());
-            boolean returned = setState(currZedState);
+            int num = getZedState();
+            if(zedNumber != num) {
+                time = System.currentTimeMillis();
+                zedNumber = num;
+            }
+
+            //try and get server time
+            JSONObject obj = getState();
 
             try {
-                Thread.sleep(2000);
-            } catch (Exception e) {
-                System.out.println("Thread 1 sleep failed " + e.toString());
+                long tempTime = obj.getLong("time");
+                int tempNum = obj.getInt("state");
+
+                if(tempTime > time) {
+                    setZedState(tempNum);
+                    zedNumber = tempNum;
+                    time = tempTime;
+                } else if ((time > tempTime) && (tempNum != zedNumber)) {
+                    //update server with zedNumber
+                    time = System.currentTimeMillis();
+                    setState(zedNumber, time);
+                }
+
+            } catch(Exception e) {
+                System.out.println("Json object is bad: " + e.toString());
             }
+
+            try {
+                Thread.sleep(1000);
+            } catch(Exception e) {
+                System.out.println("Sleep failed: " + e.toString());
+            }
+
+
 
         }
 
     }
 
     public static void setZedState(int num) {
-        String zedNum = "" + num;
+        String zedNum = "" + Math.pow(2, num);
 
         try {
             output.write(zedNum);
@@ -84,36 +89,36 @@ public class Main {
         }
     }
 
-    public static String getZedState() {
 
-        String zedNum = null;
+    public static int log2(double num)
+    {
+        return (int)(Math.log(num)/Math.log(2));
+    }
+
+    public static int getZedState() {
+
+        int zedNum = 0;
 
         try {
-            zedNum = input.readLine();
+            input = new BufferedReader(new FileReader(fileRead));
+            zedNum = Integer.parseInt(input.readLine());
+            input.close();
+            zedNum = log2(zedNum);
         } catch(Exception e) {
             System.out.println("Exception: " + e);
         }
 
-        return zedNum;
+        return zedNum + 1;
     }
 
-    public static boolean getState() {
+    public static JSONObject getState() {
         JSONObject obj = webAPI(url + "/get");
 
-        boolean returned = false;
-
-        try {
-            number = obj.getInt("state");
-            returned = true;
-        } catch (Exception e) {
-            System.out.println("Exception: " + e.toString());
-        }
-
-        return returned;
+        return obj;
     }
 
-    public static boolean setState(int num) {
-        JSONObject obj = webAPI(url + "/set/" + num);
+    public static boolean setState(int num, long time) {
+        JSONObject obj = webAPI(url + "/set/" + num + "/" + time);
 
         boolean returned = false;
 
